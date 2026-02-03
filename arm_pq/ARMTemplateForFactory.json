@@ -1,0 +1,324 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "type": "string",
+            "metadata": "Data Factory name",
+            "defaultValue": "cloud-pq-adfws"
+        },
+        "ls_adls_accountKey": {
+            "type": "secureString",
+            "metadata": "Secure string for 'accountKey' of 'ls_adls'"
+        },
+        "ls_adls_properties_typeProperties_url": {
+            "type": "string",
+            "defaultValue": "https://cloudadls001.dfs.core.windows.net/"
+        }
+    },
+    "variables": {
+        "factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+    },
+    "resources": [
+        {
+            "name": "[concat(parameters('factoryName'), '/ls_adls')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "AzureBlobFS",
+                "typeProperties": {
+                    "url": "[parameters('ls_adls_properties_typeProperties_url')]",
+                    "accountKey": {
+                        "type": "SecureString",
+                        "value": "[parameters('ls_adls_accountKey')]"
+                    }
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_adls_emp')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_adls",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "employees_final_powerquery.csv",
+                        "folderPath": "india/landing/emp",
+                        "fileSystem": "global"
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": [
+                    {
+                        "name": "EMPLOYEE_ID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "FIRST_NAME",
+                        "type": "String"
+                    },
+                    {
+                        "name": "LAST_NAME",
+                        "type": "String"
+                    },
+                    {
+                        "name": "EMAIL",
+                        "type": "String"
+                    },
+                    {
+                        "name": "PHONE_NUMBER",
+                        "type": "String"
+                    },
+                    {
+                        "name": "HIRE_DATE",
+                        "type": "String"
+                    },
+                    {
+                        "name": "JOB_ID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "SALARY",
+                        "type": "String"
+                    },
+                    {
+                        "name": "COMMISSION_PCT",
+                        "type": "String"
+                    },
+                    {
+                        "name": "MANAGER_ID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "DEPARTMENT_ID",
+                        "type": "String"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_adls')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_adls_dept')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_adls",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "departments_final_powerquery.csv",
+                        "folderPath": "india/landing/dept",
+                        "fileSystem": "global"
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": [
+                    {
+                        "name": "DEPARTMENT_ID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "DEPARTMENT_NAME",
+                        "type": "String"
+                    },
+                    {
+                        "name": "MANAGER_ID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "LOCATION_ID",
+                        "type": "String"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_adls')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/pipeline1')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "Power Query1",
+                        "type": "ExecuteWranglingDataflow",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "dataflow": {
+                                "referenceName": "powerquery1",
+                                "type": "DataFlowReference",
+                                "datasetParameters": {
+                                    "ds_adls_emp": {},
+                                    "ds_adls_dept": {},
+                                    "Mergedsadlsempout": {}
+                                }
+                            },
+                            "staging": {},
+                            "compute": {
+                                "coreCount": 8,
+                                "computeType": "General"
+                            },
+                            "queries": [
+                                {
+                                    "queryName": "Merge",
+                                    "dataflowSinks": [
+                                        {
+                                            "name": "Mergedsadlsempout",
+                                            "dataset": {
+                                                "referenceName": "ds_adls_empout",
+                                                "type": "DatasetReference",
+                                                "parameters": {}
+                                            },
+                                            "script": "sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tumask: 0022,\n\tpreCommands: [],\n\tpostCommands: [],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> Mergedsadlsempout"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "annotations": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/dataflows/powerquery1')]",
+                "[concat(variables('factoryId'), '/datasets/ds_adls_empout')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_adls_empout')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_adls",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "emp_out.csv",
+                        "folderPath": "india/landing/emp_dept",
+                        "fileSystem": "global"
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_adls')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/powerquery1')]",
+            "type": "Microsoft.DataFactory/factories/dataflows",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "type": "WranglingDataFlow",
+                "typeProperties": {
+                    "sources": [
+                        {
+                            "name": "ds_adls_emp",
+                            "script": "source(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false) ~>  ds_adls_emp",
+                            "dataset": {
+                                "referenceName": "ds_adls_emp",
+                                "type": "DatasetReference"
+                            }
+                        },
+                        {
+                            "name": "ds_adls_dept",
+                            "script": "source(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false) ~>  ds_adls_dept",
+                            "dataset": {
+                                "referenceName": "ds_adls_dept",
+                                "type": "DatasetReference"
+                            }
+                        }
+                    ],
+                    "script": "section Section1;\r\nshared ds_adls_emp = let AdfDoc = AzureStorage.DataLakeContents(\"https://cloudadls001.dfs.core.windows.net/global/india/landing/emp/employees_final_powerquery.csv\"),Csv = Csv.Document(AdfDoc, [Delimiter = \",\", Encoding = TextEncoding.Utf8, QuoteStyle = QuoteStyle.Csv]), PromotedHeaders = Table.PromoteHeaders(Csv, [PromoteAllScalars = true]) in  PromotedHeaders;\r\nshared ds_adls_dept = let AdfDoc = AzureStorage.DataLakeContents(\"https://cloudadls001.dfs.core.windows.net/global/india/landing/dept/departments_final_powerquery.csv\"),Csv = Csv.Document(AdfDoc, [Delimiter = \",\", Encoding = TextEncoding.Utf8, QuoteStyle = QuoteStyle.Csv]), PromotedHeaders = Table.PromoteHeaders(Csv, [PromoteAllScalars = true]) in  PromotedHeaders;\r\nshared UserQuery = let Source = #\"ds_adls_emp\" in Source;\r\nshared Merge = let\r\n  Source = Table.NestedJoin(ds_adls_emp, {\"DEPARTMENT_ID\"}, ds_adls_dept, {\"DEPARTMENT_ID\"}, \"ds_adls_dept\", JoinKind.Inner),\r\n  #\"Expanded ds_adls_dept\" = Table.ExpandTableColumn(Source, \"ds_adls_dept\", {\"DEPARTMENT_NAME\"}, {\"DEPARTMENT_NAME\"}),\r\n  #\"Added custom\" = Table.TransformColumnTypes(Table.AddColumn(#\"Expanded ds_adls_dept\", \"SOURCE\", each \"ADLS GEN2\"), {{\"SOURCE\", type text}}),\r\n  #\"Added custom 1\" = Table.TransformColumnTypes(Table.AddColumn(#\"Added custom\", \"INGESTION_DATE\", each DateTime.LocalNow()), {{\"INGESTION_DATE\", type datetime}}),\r\n  #\"Filtered rows\" = Table.SelectRows(#\"Added custom 1\", each ([HIRE_DATE] <> \"########\") and ([MANAGER_ID] <> \"-\")),\r\n  #\"Changed column type\" = Table.TransformColumnTypes(#\"Filtered rows\", {{\"SALARY\", Int64.Type}}),\r\n  #\"Inserted conditional column\" = Table.AddColumn(#\"Changed column type\", \"SCALE\", each if [SALARY] >= 10000 then \"Scale1\" else if [SALARY] >= 7500 then \"Scale2\" else if [SALARY] >= 5000 then \"Scale3\" else if [SALARY] < 5000 then \"Intern\" else \"\"),\r\n  #\"Changed column type 1\" = Table.TransformColumnTypes(#\"Inserted conditional column\", {{\"EMPLOYEE_ID\", Int64.Type}, {\"HIRE_DATE\", type text}, {\"MANAGER_ID\", Int64.Type}, {\"DEPARTMENT_ID\", Int64.Type}}),\r\n  #\"Removed columns\" = Table.RemoveColumns(#\"Changed column type 1\", {\"COMMISSION_PCT\"})\r\nin\r\n  #\"Removed columns\";\r\n",
+                    "documentLocale": "en-us"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_adls_emp')]",
+                "[concat(variables('factoryId'), '/datasets/ds_adls_dept')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/trigger1')]",
+            "type": "Microsoft.DataFactory/factories/triggers",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "runtimeState": "Started",
+                "pipelines": [
+                    {
+                        "pipelineReference": {
+                            "referenceName": "pipeline1",
+                            "type": "PipelineReference"
+                        },
+                        "parameters": {}
+                    }
+                ],
+                "type": "ScheduleTrigger",
+                "typeProperties": {
+                    "recurrence": {
+                        "frequency": "Day",
+                        "interval": 1,
+                        "startTime": "2026-01-06T16:46:00",
+                        "timeZone": "India Standard Time",
+                        "schedule": {
+                            "minutes": [
+                                18
+                            ],
+                            "hours": [
+                                22
+                            ]
+                        }
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/pipelines/pipeline1')]"
+            ]
+        }
+    ]
+}
